@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chat Recap</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root { --bg:#0f1220; --card:#181b2e; --muted:#9aa3b2; --text:#eaf0ff; --accent:#8b9df0; --good:#4ade80; --warn:#fbbf24; --bad:#fb7185; }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial;padding:20px}
+    .wrap{max-width:700px;margin:0 auto}
+    h1{font-size:48px;font-weight:800;margin:20px 0 8px;text-align:center;color:var(--accent);text-shadow:2px 2px 0 rgba(0,0,0,0.3)}
+    .subtitle{color:var(--muted);margin-bottom:20px;text-align:center;font-size:14px}
+    .grid{display:grid;gap:14px}
+    .card{background:var(--card);border-radius:20px;padding:18px;box-shadow:0 4px 12px rgba(0,0,0,0.2)}
+    .row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .metric-big{font-size:42px;font-weight:800;line-height:1}
+    .metric-med{font-size:28px;font-weight:700}
+    .label{font-size:13px;color:var(--muted);margin-bottom:6px;font-weight:600}
+    .label-big{font-size:16px;color:var(--text);margin-bottom:12px;font-weight:700}
+    .list{display:flex;flex-direction:column;gap:8px}
+    .list-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0}
+    .word{font-weight:600;text-transform:uppercase;font-size:13px}
+    .count{font-weight:700;font-size:15px}
+    .bar{height:10px;border-radius:5px;margin-top:4px}
+    .bar-purple{background:linear-gradient(90deg, #a78bfa 0%, #c084fc 100%)}
+    .bar-pink{background:linear-gradient(90deg, #fb7185 0%, #f472b6 100%)}
+    .flag-item{display:flex;gap:10px;align-items:flex-start;padding:8px;background:#2d1b1e;border-radius:10px;margin-bottom:8px}
+    .flag-icon{font-size:24px}
+    .flag-text{font-size:13px;color:#fb7185}
+    .gauge{position:relative;width:200px;height:200px;margin:20px auto}
+    .gauge-circle{fill:none;stroke-width:20;stroke-linecap:round}
+    .gauge-bg{stroke:#2d3748}
+    .gauge-fill{stroke:url(#grad);transition:stroke-dashoffset 0.5s}
+    .gauge-text{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:54px;font-weight:800;color:var(--accent)}
+    .upload{display:flex;gap:10px;margin:12px 0;align-items:center}
+    input[type=file]{flex:1;color:var(--text);padding:10px;border:2px dashed #374151;border-radius:10px;font-size:13px;background:var(--card)}
+    button{background:linear-gradient(135deg, var(--accent) 0%, #a855f7 100%);color:#0b1020;border:none;border-radius:12px;padding:12px 20px;font-weight:700;cursor:pointer;font-size:14px;box-shadow:0 4px 12px rgba(139,157,240,0.3)}
+    button:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(139,157,240,0.4)}
+    .status{color:var(--muted);font-size:12px;margin-left:10px}
+    #idSelectCard{background:var(--card);border-radius:20px;padding:20px;margin-bottom:20px;box-shadow:0 4px 12px rgba(0,0,0,0.2)}
+    #idButtons{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+    #idButtons button{min-width:80px}
+    canvas{width:100% !important;max-height:180px !important}
+    .loading{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(15,18,32,0.95);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999}
+    .loading-spinner{width:60px;height:60px;border:4px solid #374151;border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite}
+    .loading-text{margin-top:20px;color:var(--text);font-size:16px;font-weight:600}
+    .loading-sub{margin-top:8px;color:var(--muted);font-size:13px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+  </style>
+</head>
+<body>
+  <div id="loading" class="loading" style="display:none;">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">Analyzing your chat...</div>
+    <div class="loading-sub">This may take a moment</div>
+  </div>
+
+  <div class="wrap">
+    <h1>Chat Recap</h1>
+    <div class="subtitle">Upload your chat export to see relationship insights.</div>
+    <div id="dateRange" class="subtitle" style="display:none;color:var(--accent);font-weight:600;margin-top:-10px"></div>
+
+    <div class="card upload">
+      <input id="file" type="file" accept=".csv,.txt" />
+      <button id="go">Generate</button>
+      <span id="status" class="status"></span>
+    </div>
+
+    <div id="idSelectCard" style="display:none;">
+      <div class="label-big">Pick which sender is you (last <span id="digitCount"></span> digit(s) of your phone):</div>
+      <div id="idButtons"></div>
+    </div>
+
+    <div id="results" class="grid" style="display:none;">
+      <div class="row2">
+        <div class="card">
+          <div class="label">Messages count</div>
+          <div class="row2" style="margin-top:8px">
+            <div><div style="color:#6b7280;font-size:12px">you</div><div id="msgYou" class="metric-big">—</div></div>
+            <div><div style="color:#6b7280;font-size:12px">them</div><div id="msgThem" class="metric-big">—</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="label">Compliment count</div>
+          <div class="row2" style="margin-top:8px">
+            <div><div style="color:#6b7280;font-size:12px">you</div><div id="compYou" class="metric-big">—</div></div>
+            <div><div style="color:#6b7280;font-size:12px">them</div><div id="compThem" class="metric-big">—</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row2">
+        <div class="card">
+          <div class="label">Avg message length</div>
+          <div class="row2" style="margin-top:8px">
+            <div><div style="color:#6b7280;font-size:12px">you</div><div id="avgYou" class="metric-big">—</div></div>
+            <div><div style="color:#6b7280;font-size:12px">them</div><div id="avgThem" class="metric-big">—</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="label">Conflict count</div>
+          <div class="row2" style="margin-top:8px">
+            <div><div style="color:#6b7280;font-size:12px">you</div><div id="conflictYou" class="metric-big">—</div></div>
+            <div><div style="color:#6b7280;font-size:12px">them</div><div id="conflictThem" class="metric-big">—</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="label-big">Top used words (you)</div>
+        <div id="topYou" class="list"></div>
+      </div>
+
+      <div class="card">
+        <div class="label-big">Top used words (them)</div>
+        <div id="topThem" class="list"></div>
+      </div>
+
+      <div class="card" style="background:#fce7f3">
+        <div class="label-big" style="color:#be123c">Red Flags (You) ➤</div>
+        <div id="redFlagsYou"></div>
+      </div>
+
+      <div class="card" style="background:#fce7f3">
+        <div class="label-big" style="color:#be123c">Red Flags (Them) ➤</div>
+        <div id="redFlagsThem"></div>
+      </div>
+
+      <div class="card" style="background:#d1fae5">
+        <div class="label-big" style="color:#065f46">Green Flags (You) ✓</div>
+        <div id="greenFlagsYou"></div>
+      </div>
+
+      <div class="card" style="background:#d1fae5">
+        <div class="label-big" style="color:#065f46">Green Flags (Them) ✓</div>
+        <div id="greenFlagsThem"></div>
+      </div>
+
+      <div class="card">
+        <div class="label">Attachment style</div>
+        <div class="row2" style="margin-top:8px">
+          <div><div style="color:#6b7280;font-size:12px">you</div><div id="attachYou" class="metric-med">—</div><div id="attachYouPct" style="font-size:18px;color:#6b7280">—</div></div>
+          <div><div style="color:#6b7280;font-size:12px">them</div><div id="attachThem" class="metric-med">—</div><div id="attachThemPct" style="font-size:18px;color:#6b7280">—</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="label-big">Communication Style</div>
+        <div style="margin-top:10px">
+          <div style="margin-bottom:12px"><strong style="color:var(--accent)">You:</strong> <span id="commStyleYou" style="color:var(--muted)">—</span></div>
+          <div><strong style="color:#a78bfa">Them:</strong> <span id="commStyleThem" style="color:var(--muted)">—</span></div>
+        </div>
+      </div>
+
+      <div class="row2">
+        <div class="card">
+          <div class="label">Energy Match</div>
+          <div id="energyMatch" class="metric-big" style="color:var(--accent)">—%</div>
+        </div>
+        <div class="card">
+          <div class="label">Humor Compatibility</div>
+          <div id="humorCompat" class="metric-big" style="color:var(--accent)">—%</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="label">Compatibility Score</div>
+        <div id="compatScore" class="metric-big" style="color:var(--good)">—%</div>
+      </div>
+
+      <div class="card">
+        <div class="label-big">Overall Vibe</div>
+        <div id="vibe" style="color:var(--muted);font-size:15px;line-height:1.6;margin-top:10px">—</div>
+      </div>
+
+      <div class="card">
+        <div class="label-big">Conversation Topics</div>
+        <div id="topics" class="list"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const el = id => document.getElementById(id);
+    let uploadedData = null;
+    let charts = [];
+
+    function showLoading(show){
+      el('loading').style.display = show ? 'flex' : 'none';
+    }
+
+    async function upload(){
+      const file = el('file').files[0];
+      if(!file){ el('status').textContent = 'Select a file first'; return; }
+      el('status').textContent = 'Uploading…';
+      showLoading(true);
+      const fd = new FormData();
+      fd.append('chatfile', file);
+      try{
+        const resp = await fetch('/upload', { method:'POST', body: fd });
+        const json = await resp.json();
+        showLoading(false);
+        if(!json.success){ throw new Error(json.error || 'Failed'); }
+        
+        uploadedData = json;
+        el('status').textContent = `Ready`;
+        
+        // Format and display date range
+        const formatDate = (isoStr) => {
+          if (!isoStr) return 'unknown';
+          try {
+            const d = new Date(isoStr);
+            return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+          } catch { return isoStr; }
+        };
+        
+        if (json.cutoffDate) {
+          el('dateRange').textContent = `Showing from ${formatDate(json.cutoffDate)} onwards`;
+          el('dateRange').style.display = 'block';
+        }
+        
+        el('digitCount').textContent = json.suffixLength || '?';
+        const btns = el('idButtons');
+        btns.innerHTML = '';
+        (json.senderIds || []).forEach(id => {
+          const btn = document.createElement('button');
+          btn.textContent = id;
+          btn.onclick = () => analyze(id);
+          btns.appendChild(btn);
+        });
+        el('idSelectCard').style.display = 'block';
+      }catch(e){
+        showLoading(false);
+        console.error(e);
+        el('status').textContent = 'Error: ' + (e?.message || e);
+      }
+    }
+
+    async function analyze(yourId){
+      el('status').textContent = 'Analyzing…';
+      el('idSelectCard').style.display = 'none';
+      showLoading(true);
+      
+      // Fake delay for dramatic effect
+      await new Promise(r => setTimeout(r, 2000));
+      
+      try{
+        const resp = await fetch('/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cleanedPath: uploadedData.cleanedPath, yourId })
+        });
+        const json = await resp.json();
+        showLoading(false);
+        if(!json.success){ throw new Error(json.error || 'Failed'); }
+        const summary = json.summary || tryParse(json?.raw?.choices?.[0]?.message?.content) || {};
+        render(summary);
+        el('status').textContent = 'Done';
+        el('results').style.display = 'grid';
+      }catch(e){
+        showLoading(false);
+        console.error(e);
+        el('status').textContent = 'Error: ' + (e?.message || e);
+      }
+    }
+
+    function render(s){
+      console.log('Rendering summary:', s);
+      
+      el('msgYou').textContent = s?.message_count?.you || 0;
+      el('msgThem').textContent = s?.message_count?.them || 0;
+      el('compYou').textContent = s?.compliment_count?.you || 0;
+      el('compThem').textContent = s?.compliment_count?.them || 0;
+      
+      el('avgYou').textContent = s?.avg_message_length?.you || 0;
+      el('avgThem').textContent = s?.avg_message_length?.them || 0;
+      
+      el('conflictYou').textContent = s?.conflict_count?.you || 0;
+      el('conflictThem').textContent = s?.conflict_count?.them || 0;
+
+      // Top words with horizontal bars (proportional)
+      const topY = el('topYou');
+      topY.innerHTML = '';
+      const maxYou = Math.max(...(s?.top_words_you || []).map(w => w.count), 1);
+      (s?.top_words_you || []).forEach(w => {
+        const item = document.createElement('div');
+        item.style.marginBottom = '10px';
+        item.innerHTML = `
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span class="word" style="color:var(--accent)">${w.word}</span>
+            <span class="count">${w.count}</span>
+          </div>
+          <div class="bar bar-pink" style="width:${(w.count / maxYou * 100)}%"></div>
+        `;
+        topY.appendChild(item);
+      });
+
+      const topT = el('topThem');
+      topT.innerHTML = '';
+      const maxThem = Math.max(...(s?.top_words_them || []).map(w => w.count), 1);
+      (s?.top_words_them || []).forEach(w => {
+        const item = document.createElement('div');
+        item.style.marginBottom = '10px';
+        item.innerHTML = `
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span class="word" style="color:#a78bfa">${w.word}</span>
+            <span class="count">${w.count}</span>
+          </div>
+          <div class="bar bar-purple" style="width:${(w.count / maxThem * 100)}%"></div>
+        `;
+        topT.appendChild(item);
+      });
+
+      // Top emojis - removed (not in prompt)
+
+      // Red flags you
+      const redYou = el('redFlagsYou');
+      redYou.innerHTML = '';
+      (s?.red_flags_you || []).forEach(f => {
+        const d = document.createElement('div');
+        d.className = 'flag-item';
+        d.innerHTML = `<div class="flag-icon">${f.icon}</div><div class="flag-text">${f.text}</div>`;
+        redYou.appendChild(d);
+      });
+
+      // Red flags them
+      const redThem = el('redFlagsThem');
+      redThem.innerHTML = '';
+      (s?.red_flags_them || []).forEach(f => {
+        const d = document.createElement('div');
+        d.className = 'flag-item';
+        d.innerHTML = `<div class="flag-icon">${f.icon}</div><div class="flag-text">${f.text}</div>`;
+        redThem.appendChild(d);
+      });
+
+      // Green flags you
+      const greenYou = el('greenFlagsYou');
+      greenYou.innerHTML = '';
+      (s?.green_flags_you || []).forEach(f => {
+        const d = document.createElement('div');
+        d.className = 'flag-item';
+        d.style.background = '#a7f3d0';
+        d.innerHTML = `<div class="flag-icon">${f.icon}</div><div class="flag-text" style="color:#065f46">${f.text}</div>`;
+        greenYou.appendChild(d);
+      });
+
+      // Green flags them
+      const greenThem = el('greenFlagsThem');
+      greenThem.innerHTML = '';
+      (s?.green_flags_them || []).forEach(f => {
+        const d = document.createElement('div');
+        d.className = 'flag-item';
+        d.style.background = '#a7f3d0';
+        d.innerHTML = `<div class="flag-icon">${f.icon}</div><div class="flag-text" style="color:#065f46">${f.text}</div>`;
+        greenThem.appendChild(d);
+      });
+
+      // Attachment style
+      el('attachYou').textContent = s?.attachment_style?.you || '—';
+      el('attachYouPct').textContent = s?.attachment_style?.you_percent ? `${s.attachment_style.you_percent}%` : '';
+      el('attachThem').textContent = s?.attachment_style?.them || '—';
+      el('attachThemPct').textContent = s?.attachment_style?.them_percent ? `${s.attachment_style.them_percent}%` : '';
+
+      // Communication style
+      el('commStyleYou').textContent = s?.communication_style?.you || '—';
+      el('commStyleThem').textContent = s?.communication_style?.them || '—';
+
+      // Metrics
+      el('energyMatch').textContent = (s?.energy_match || 0) + '%';
+      el('humorCompat').textContent = (s?.humor_compatibility || 0) + '%';
+      el('compatScore').textContent = (s?.compatibility_score || 0) + '%';
+      
+      // Vibe
+      el('vibe').textContent = s?.vibe || '—';
+
+      // Topics
+      const topics = el('topics');
+      topics.innerHTML = '';
+      (s?.conversation_topics || []).forEach(t => {
+        const d = document.createElement('div');
+        d.style.padding = '10px 14px';
+        d.style.background = '#1f2937';
+        d.style.borderRadius = '10px';
+        d.style.fontSize = '13px';
+        d.style.marginBottom = '8px';
+        d.style.borderLeft = '3px solid var(--accent)';
+        d.textContent = t;
+        topics.appendChild(d);
+      });
+    }
+
+    function tryParse(s){ try{ return JSON.parse(s||''); }catch{ return null; } }
+    el('go').addEventListener('click', upload);
+  </script>
+</body>
+</html>

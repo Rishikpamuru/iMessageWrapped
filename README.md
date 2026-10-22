@@ -45,3 +45,5 @@ curl -F "chatfile=@name.csv" http://localhost:3000/upload
 ```
 
 The server will return a JSON summary of your chat.
+
+curl -F "chatfile=@C:\Users\rison\Desktop\Codes\VS\ChatWrapped\name.csv" http://localhost:3000/upload
